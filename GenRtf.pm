@@ -20,27 +20,30 @@ use warnings;
 use English '-no_match_vars';
 use strict;
 use feature qw(switch say);
-use Getopt::Long;
+use RTF::Writer;
 use Readonly;
 
 our $VERSION = 1.1;
 
-Readonly::Scalar my $FALSE   => 0;
-Readonly::Scalar my $TRUE    => 1;
-Readonly::Scalar my $MID     => 0;
-Readonly::Scalar my $LNAME   => 1;
-Readonly::Scalar my $FNAMES  => 2;
-Readonly::Scalar my $ADDR1   => 3;
-Readonly::Scalar my $ADDR2   => 4;
-Readonly::Scalar my $ADDR3   => 5;
-Readonly::Scalar my $ADDR4   => 6;
-Readonly::Scalar my $ADDR5   => 7;
-Readonly::Scalar my $ADDR6   => 8;
-Readonly::Scalar my $ADDR7   => 9;
-Readonly::Scalar my $EMAIL   => 10;
-Readonly::Scalar my $OPTIONS => 11;
-Readonly::Scalar my $CLASS   => 12;
-Readonly::Scalar my $CREDIT  => 13;
+Readonly::Scalar my $FALSE     => 0;
+Readonly::Scalar my $TRUE      => 1;
+Readonly::Scalar my $FN_PREFIX => 'BCPS';
+Readonly::Scalar my $FN_SUFFIX => '.rtf';
+Readonly::Scalar my $YEAR_BASE => 1900;
+Readonly::Scalar my $MID       => 0;
+Readonly::Scalar my $LNAME     => 1;
+Readonly::Scalar my $FNAMES    => 2;
+Readonly::Scalar my $ADDR1     => 3;
+Readonly::Scalar my $ADDR2     => 4;
+Readonly::Scalar my $ADDR3     => 5;
+Readonly::Scalar my $ADDR4     => 6;
+Readonly::Scalar my $ADDR5     => 7;
+Readonly::Scalar my $ADDR6     => 8;
+Readonly::Scalar my $ADDR7     => 9;
+Readonly::Scalar my $EMAIL     => 10;
+Readonly::Scalar my $OPTIONS   => 11;
+Readonly::Scalar my $CLASS     => 12;
+Readonly::Scalar my $CREDIT    => 13;
 Readonly::Scalar my $M_SQL =>
   'select mid, lname, fnames, addr1, addr2, addr3, addr4, addr5, addr6, addr7, email '
   . 'options, class, credit from members '
@@ -53,6 +56,8 @@ Readonly::Scalar my $C_SQL =>
   . 'order by lname, fnames';
 
 my @records;
+my $fname;
+my $rtf;
 
 sub gen_rtf {
     my ( $member, $contrib, $debug, $dbh ) = @_;
@@ -60,7 +65,43 @@ sub gen_rtf {
 
     ( $debug == $TRUE ) && ( $rv = say 'GenRtf::gen_rtf()' );
 
+    my ( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) = gmtime time;
+    $fname = sprintf '%s_%4d_%02d_%02d%s', $FN_PREFIX, $year + $YEAR_BASE, $mon + 1, $mday, $FN_SUFFIX;
+    ( $debug == $TRUE ) && ( $rv = say "$fname" );
+
+    write_header( $member, $contrib, $debug );
     collect_data( $member, $contrib, $debug, $dbh );
+    write_footer( $member, $contrib, $debug );
+
+    return;
+}
+
+sub write_header {
+    my ( $member, $contrib, $debug ) = @_;
+    my $title = sprintf 'BCPS %s list', ( $member == $TRUE ) ? 'Active Subscribers' : 'Contributors';
+    my $rv;
+
+    ( $debug == $TRUE ) && ( $rv = say 'GenRtf::write_header()' );
+
+    $rtf = RTF::Writer->new_to_file($fname);
+    $rtf->prolog( 'title' => $title );
+    $rtf->number_pages();
+
+    if ( $debug == $TRUE ) {
+        foreach my $i ( 1 .. 100 ) {
+            $rtf->paragraph( \'\fs40\b\i', 'Hi there' );
+        }
+    }
+
+    return;
+}
+
+sub write_footer {
+    my ( $member, $contrib, $debug ) = @_;
+    my $rv;
+
+    ( $debug == $TRUE ) && ( $rv = say 'GenRtf::write_footer()' );
+    $rtf->close();
 
     return;
 }
