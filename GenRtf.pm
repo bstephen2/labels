@@ -20,7 +20,7 @@ use warnings;
 use English '-no_match_vars';
 use strict;
 use feature qw(switch say);
-use RTF::Writer;
+use RTF::Writer qw(rtfesc);
 use Readonly;
 
 our $VERSION = 1.1;
@@ -71,6 +71,7 @@ sub gen_rtf {
 
     write_header( $member, $contrib, $debug );
     collect_data( $member, $contrib, $debug, $dbh );
+    write_data( $debug, $dbh );
     write_footer( $member, $contrib, $debug );
 
     return;
@@ -84,13 +85,74 @@ sub write_header {
     ( $debug == $TRUE ) && ( $rv = say 'GenRtf::write_header()' );
 
     $rtf = RTF::Writer->new_to_file($fname);
-    $rtf->prolog( 'title' => $title );
-    $rtf->number_pages();
+    $rtf->prolog(
+        'title' => $title,
+        'fonts' => 'Courier new',
+        'deff'  => 0
+    );
 
-    if ( $debug == $TRUE ) {
-        foreach my $i ( 1 .. 100 ) {
-            $rtf->paragraph( \'\fs40\b\i', 'Hi there' );
+    $rtf->number_pages( \'\ql\fs24\f0', "$title\npage " );
+
+    return;
+}
+
+sub write_data {
+    my ( $debug, $dbh ) = @_;
+    my $rv;
+
+    ( $debug == $TRUE ) && ( $rv = say 'GenRtf::write_data()' );
+
+    foreach my $r_hash (@records) {
+        my $email;
+        my $foren;
+        my $credit;
+        my $mid   = sprintf "    MID: %4d\n", $r_hash->{MID};
+        my $lname = sprintf "  LNAME: %s\n",  $r_hash->{LNAME};
+
+        if ( defined $r_hash->{FNAMES} ) {
+            $foren = sprintf " FNAMES: %s\n", $r_hash->{FNAMES};
         }
+        else {
+            $foren = sprintf " FNAMES:\n";
+        }
+
+        #$r_hash->{ADDR1}   = $r_row->[$ADDR1];
+        #$r_hash->{ADDR2}   = $r_row->[$ADDR2];
+        #$r_hash->{ADDR3}   = $r_row->[$ADDR3];
+        #$r_hash->{ADDR4}   = $r_row->[$ADDR4];
+        #$r_hash->{ADDR5}   = $r_row->[$ADDR5];
+        #$r_hash->{ADDR6}   = $r_row->[$ADDR6];
+        #$r_hash->{ADDR7}   = $r_row->[$ADDR7];
+
+        if ( defined $r_hash->{EMAIL} ) {
+            $email = sprintf "  EMAIL: %s\n", $r_hash->{EMAIL};
+        }
+        else {
+            $email = "  EMAIL:\n";
+        }
+
+        my $options = sprintf "OPTIONS: %s\n", $r_hash->{OPTIONS};
+        my $class   = sprintf "  CLASS: %s\n", $r_hash->{CLASS};
+
+        if ( defined $r_hash->{CREDIT} ) {
+            $credit = sprintf " CREDIT: %s\n", $r_hash->{CREDIT};
+        }
+        else {
+            $credit = " CREDIT:\n";
+        }
+
+        if ( $debug == $TRUE ) {
+            $rv = print "$mid";
+            $rv = print "$lname";
+            $rv = print "$foren";
+            $rv = print "$email";
+            $rv = print "$options";
+            $rv = print "$class";
+            $rv = print "$credit";
+        }
+
+        $rtf->paragraph( \'\sa180\li180\fs24\f0\keep',
+            $mid, $lname, $foren, $email, $options, $class, $credit );
     }
 
     return;
@@ -122,7 +184,7 @@ sub collect_data {
         my $r_hash = {};
         $r_hash->{MID}     = $r_row->[$MID];
         $r_hash->{LNAME}   = $r_row->[$LNAME];
-        $r_hash->{FNAMES}  = $r_row->[$LNAME];
+        $r_hash->{FNAMES}  = $r_row->[$FNAMES];
         $r_hash->{ADDR1}   = $r_row->[$ADDR1];
         $r_hash->{ADDR2}   = $r_row->[$ADDR2];
         $r_hash->{ADDR3}   = $r_row->[$ADDR3];
