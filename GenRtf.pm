@@ -45,12 +45,12 @@ Readonly::Scalar my $OPTIONS   => 11;
 Readonly::Scalar my $CLASS     => 12;
 Readonly::Scalar my $CREDIT    => 13;
 Readonly::Scalar my $M_SQL =>
-  'select mid, lname, fnames, addr1, addr2, addr3, addr4, addr5, addr6, addr7, email '
+  'select mid, lname, fnames, addr1, addr2, addr3, addr4, addr5, addr6, addr7, email, '
   . 'options, class, credit from members '
   . 'where (class != \'contributor\') and (active = 1) '
   . 'order by lname, fnames';
 Readonly::Scalar my $C_SQL =>
-  'select mid, lname, fnames, addr1, addr2, addr3, addr4, addr5, addr6, addr7, email '
+  'select mid, lname, fnames, addr1, addr2, addr3, addr4, addr5, addr6, addr7, email, '
   . 'options, class, credit from members '
   . 'where (class = \'contributor\') '
   . 'order by lname, fnames';
@@ -71,7 +71,8 @@ sub gen_rtf {
 
     write_header( $member, $contrib, $debug );
     collect_data( $member, $contrib, $debug, $dbh );
-    write_data( $debug, $dbh );
+
+    write_data( $debug, $dbh, $member );
     write_footer( $member, $contrib, $debug );
 
     return;
@@ -79,7 +80,7 @@ sub gen_rtf {
 
 sub write_header {
     my ( $member, $contrib, $debug ) = @_;
-    my $title = sprintf 'BCPS %s list', ( $member == $TRUE ) ? 'Active Subscribers' : 'Contributors';
+    my $title = sprintf 'BCPS: List Of %s', ( $member == $TRUE ) ? 'Active Subscribers' : 'Contributors';
     my $rv;
 
     ( $debug == $TRUE ) && ( $rv = say 'GenRtf::write_header()' );
@@ -91,18 +92,21 @@ sub write_header {
         'deff'  => 0
     );
 
-    $rtf->number_pages( \'\ql\fs24\f0', "$title\npage " );
+    $rtf->print( \'\margl900 \margr900 \margt900 \margb900 \cols2 \linebetcol' );
+
+    $rtf->printf( \'{\header \pard\ql\fs24\f0 %s - page \chpgn \par}', $title );
 
     return;
 }
 
 sub write_data {
-    my ( $debug, $dbh ) = @_;
+    my ( $debug, $dbh, $member ) = @_;
     my $rv;
 
     ( $debug == $TRUE ) && ( $rv = say 'GenRtf::write_data()' );
 
     foreach my $r_hash (@records) {
+        my $address;
         my $email;
         my $foren;
         my $credit;
@@ -116,13 +120,30 @@ sub write_data {
             $foren = sprintf " FNAMES:\n";
         }
 
-        #$r_hash->{ADDR1}   = $r_row->[$ADDR1];
-        #$r_hash->{ADDR2}   = $r_row->[$ADDR2];
-        #$r_hash->{ADDR3}   = $r_row->[$ADDR3];
-        #$r_hash->{ADDR4}   = $r_row->[$ADDR4];
-        #$r_hash->{ADDR5}   = $r_row->[$ADDR5];
-        #$r_hash->{ADDR6}   = $r_row->[$ADDR6];
-        #$r_hash->{ADDR7}   = $r_row->[$ADDR7];
+        if ( defined $r_hash->{ADDR1} ) {
+            my $addr  = q{};
+            my @lines = (
+                $r_hash->{ADDR1}, $r_hash->{ADDR2}, $r_hash->{ADDR3}, $r_hash->{ADDR4},
+                $r_hash->{ADDR5}, $r_hash->{ADDR6}, $r_hash->{ADDR7},
+            );
+
+          ADDR_LOOP:
+            foreach my $line (@lines) {
+                ( !defined $line ) && ( last ADDR_LOOP );
+                $addr .= ( $line . ', ' );
+            }
+
+            chop $addr;
+            chop $addr;
+
+            #$addr =~ s/^ //xms;
+            $addr =~ s/\s\s/ /gxms;
+
+            $address = sprintf "ADDRESS: %s\n", $addr;
+        }
+        else {
+            $address = "ADDRESS:\n";
+        }
 
         if ( defined $r_hash->{EMAIL} ) {
             $email = sprintf "  EMAIL: %s\n", $r_hash->{EMAIL};
@@ -134,25 +155,21 @@ sub write_data {
         my $options = sprintf "OPTIONS: %s\n", $r_hash->{OPTIONS};
         my $class   = sprintf "  CLASS: %s\n", $r_hash->{CLASS};
 
-        if ( defined $r_hash->{CREDIT} ) {
-            $credit = sprintf " CREDIT: %s\n", $r_hash->{CREDIT};
+        if ( $member == $TRUE ) {
+            if ( defined $r_hash->{CREDIT} ) {
+                $credit = sprintf " CREDIT: %s\n", $r_hash->{CREDIT};
+            }
+            else {
+                $credit = " CREDIT:\n";
+            }
+
+            $rtf->paragraph( \'\sa10\fs16\f0\keep',
+                $mid, $lname, $foren, $email, $address, $options, $class, $credit );
         }
         else {
-            $credit = " CREDIT:\n";
+            $rtf->paragraph( \'\sa10\fs16\f0\keep',
+                $mid, $lname, $foren, $email, $address, $options, $class );
         }
-
-        if ( $debug == $TRUE ) {
-            $rv = print "$mid";
-            $rv = print "$lname";
-            $rv = print "$foren";
-            $rv = print "$email";
-            $rv = print "$options";
-            $rv = print "$class";
-            $rv = print "$credit";
-        }
-
-        $rtf->paragraph( \'\sa180\li180\fs24\f0\keep',
-            $mid, $lname, $foren, $email, $options, $class, $credit );
     }
 
     return;
